@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 
 from knowledge_mcp.server import DEFAULT_CATEGORIES_PATH, DEFAULT_DB_PATH
 from knowledge_mcp.service import KnowledgeService
 
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-SERVICE = KnowledgeService(ROOT_DIR / DEFAULT_DB_PATH.relative_to(ROOT_DIR), ROOT_DIR / DEFAULT_CATEGORIES_PATH.relative_to(ROOT_DIR))
+SERVICE = KnowledgeService(DEFAULT_DB_PATH, DEFAULT_CATEGORIES_PATH)
 
 
 if __name__ == "__main__":
