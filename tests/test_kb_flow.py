@@ -43,10 +43,20 @@ class KnowledgeFlowTest(unittest.TestCase):
         searched = self.service.search_knowledge("空结果", limit=3)
         self.assertEqual(len(searched["items"]), 1)
         self.assertEqual(searched["items"][0]["item_id"], item_id)
+        self.assertEqual(
+            set(searched["items"][0].keys()),
+            {"item_id", "title", "summary", "category", "tags", "updated_at"},
+        )
+        self.assertNotIn("content", searched["items"][0])
 
         answered = self.service.ask_knowledge("导量任务空结果先排查什么？", limit=2)
         self.assertIn("结论：", answered["answer"])
         self.assertIn("导量空结果排查", answered["answer"])
+        self.assertEqual(
+            set(answered["items"][0].keys()),
+            {"item_id", "title", "summary", "category", "tags", "updated_at"},
+        )
+        self.assertNotIn("content", answered["items"][0])
 
         updated = self.service.update_knowledge(item_id, content="优先检查互斥规则、频控、实验位和配置开关。")
         self.assertIn("配置开关", updated["item"]["content"])

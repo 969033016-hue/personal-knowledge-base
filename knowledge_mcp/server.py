@@ -122,7 +122,7 @@ class StdioJsonRpcServer:
             },
             {
                 "name": "search_knowledge",
-                "description": "按关键词、分类、标签检索知识。",
+                "description": "按关键词、分类、标签检索知识，默认返回摘要预览结果。",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -136,7 +136,7 @@ class StdioJsonRpcServer:
             },
             {
                 "name": "ask_knowledge",
-                "description": "输入问题，自动检索并生成回答。",
+                "description": "输入问题，自动检索并生成回答，同时返回摘要预览结果。",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

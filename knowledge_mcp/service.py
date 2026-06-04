@@ -71,7 +71,7 @@ class KnowledgeService:
         ranked = self.retriever.rank_items(query, items)[:limit]
         return {
             "guessed_categories": infer_query_categories(query),
-            "items": [item.to_dict() for item in ranked],
+            "items": [item.to_preview_dict() for item in ranked],
         }
 
     def ask_knowledge(self, question: str, limit: int = 3) -> dict[str, Any]:
@@ -80,7 +80,7 @@ class KnowledgeService:
         return {
             "guessed_categories": infer_query_categories(question),
             "answer": build_answer(question, ranked),
-            "items": [item.to_dict() for item in ranked],
+            "items": [item.to_preview_dict() for item in ranked],
         }
 
     def list_categories(self) -> dict[str, Any]:

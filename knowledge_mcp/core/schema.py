@@ -5,6 +5,16 @@ from datetime import datetime
 from typing import Any
 
 
+PREVIEW_FIELDS = (
+    "item_id",
+    "title",
+    "summary",
+    "category",
+    "tags",
+    "updated_at",
+)
+
+
 def now_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
@@ -26,6 +36,10 @@ class KnowledgeItem:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def to_preview_dict(self) -> dict[str, Any]:
+        payload = self.to_dict()
+        return {field: payload[field] for field in PREVIEW_FIELDS}
 
     @classmethod
     def from_row(cls, row: dict[str, Any], tags: list[str] | None = None) -> "KnowledgeItem":
