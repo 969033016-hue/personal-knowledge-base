@@ -23,6 +23,9 @@ class StdioJsonRpcServer:
             "search_knowledge": self._handle_search_knowledge,
             "ask_knowledge": self._handle_ask_knowledge,
             "list_categories": self._handle_list_categories,
+            "ingest_source": self._handle_ingest_source,
+            "lint_knowledge": self._handle_lint_knowledge,
+            "link_knowledge": self._handle_link_knowledge,
         }
 
     def serve(self) -> None:
@@ -41,7 +44,7 @@ class StdioJsonRpcServer:
                         "capabilities": {"tools": {}},
                         "serverInfo": {
                             "name": "personal-knowledge-base",
-                            "version": "0.1.0",
+                            "version": "0.2.0",
                         },
                     },
                 )
@@ -64,17 +67,18 @@ class StdioJsonRpcServer:
                 "content": [{"type": "text", "text": json.dumps({"error": f"unknown tool: {tool_name}"}, ensure_ascii=False)}],
                 "isError": True,
             }
-        payload = handler(arguments)
+        payload = handler(dict(arguments))
         return {
             "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False, indent=2)}],
             "isError": bool(payload.get("error")),
         }
 
     def _tool_definitions(self) -> list[dict[str, Any]]:
+        # 工具定义集中维护，方便 MCP 客户端一次性读取完整能力边界。
         return [
             {
                 "name": "add_knowledge",
-                "description": "新增知识条目，并自动补齐摘要、分类与标签。",
+                "description": "新增知识卡片，并自动补齐摘要、分类与标签。",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -85,14 +89,16 @@ class StdioJsonRpcServer:
                         "tags": {"type": "array", "items": {"type": "string"}},
                         "project_scope": {"type": "string"},
                         "source_type": {"type": "string"},
-                        "confidence": {"type": "string"}
+                        "confidence": {"type": "string"},
+                        "knowledge_type": {"type": "string"},
+                        "status": {"type": "string"},
                     },
-                    "required": ["title", "content"]
-                }
+                    "required": ["title", "content"],
+                },
             },
             {
                 "name": "update_knowledge",
-                "description": "按知识 ID 更新条目内容。",
+                "description": "按知识 ID 更新卡片内容。",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -104,21 +110,21 @@ class StdioJsonRpcServer:
                         "tags": {"type": "array", "items": {"type": "string"}},
                         "project_scope": {"type": "string"},
                         "source_type": {"type": "string"},
-                        "confidence": {"type": "string"}
+                        "confidence": {"type": "string"},
+                        "knowledge_type": {"type": "string"},
+                        "status": {"type": "string"},
                     },
-                    "required": ["item_id"]
-                }
+                    "required": ["item_id"],
+                },
             },
             {
                 "name": "get_knowledge",
-                "description": "按知识 ID 读取单条知识。",
+                "description": "按知识 ID 读取单条知识详情。",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {
-                        "item_id": {"type": "integer"}
-                    },
-                    "required": ["item_id"]
-                }
+                    "properties": {"item_id": {"type": "integer"}},
+                    "required": ["item_id"],
+                },
             },
             {
                 "name": "search_knowledge",
@@ -129,10 +135,10 @@ class StdioJsonRpcServer:
                         "query": {"type": "string"},
                         "category": {"type": "string"},
                         "tags": {"type": "array", "items": {"type": "string"}},
-                        "limit": {"type": "integer"}
+                        "limit": {"type": "integer"},
                     },
-                    "required": ["query"]
-                }
+                    "required": ["query"],
+                },
             },
             {
                 "name": "ask_knowledge",
@@ -141,19 +147,56 @@ class StdioJsonRpcServer:
                     "type": "object",
                     "properties": {
                         "question": {"type": "string"},
-                        "limit": {"type": "integer"}
+                        "limit": {"type": "integer"},
                     },
-                    "required": ["question"]
-                }
+                    "required": ["question"],
+                },
             },
             {
                 "name": "list_categories",
-                "description": "查看内置分类清单。",
+                "description": "查看内置分类清单，并同步到知识域表。",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "ingest_source",
+                "description": "导入来源材料，创建来源记录、知识卡片和证据片段。",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {}
-                }
-            }
+                    "properties": {
+                        "title": {"type": "string"},
+                        "content": {"type": "string"},
+                        "source_type": {"type": "string"},
+                        "uri": {"type": "string"},
+                        "owner": {"type": "string"},
+                        "category": {"type": "string"},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "project_scope": {"type": "string"},
+                        "confidence": {"type": "string"},
+                        "split_by_paragraph": {"type": "boolean"},
+                        "metadata": {"type": "object"},
+                    },
+                    "required": ["title", "content"],
+                },
+            },
+            {
+                "name": "lint_knowledge",
+                "description": "检查知识库质量问题，返回问题统计和明细。",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "link_knowledge",
+                "description": "建立两条知识之间的关系，如补充、依赖、冲突、重复。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "from_item_id": {"type": "integer"},
+                        "to_item_id": {"type": "integer"},
+                        "link_type": {"type": "string"},
+                        "note": {"type": "string"},
+                    },
+                    "required": ["from_item_id", "to_item_id"],
+                },
+            },
         ]
 
     def _handle_add_knowledge(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -182,6 +225,20 @@ class StdioJsonRpcServer:
 
     def _handle_list_categories(self, _: dict[str, Any]) -> dict[str, Any]:
         return self.service.list_categories()
+
+    def _handle_ingest_source(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.service.ingest_source(**arguments)
+
+    def _handle_lint_knowledge(self, _: dict[str, Any]) -> dict[str, Any]:
+        return self.service.lint_knowledge()
+
+    def _handle_link_knowledge(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.service.link_knowledge(
+            from_item_id=int(arguments["from_item_id"]),
+            to_item_id=int(arguments["to_item_id"]),
+            link_type=str(arguments.get("link_type", "related")),
+            note=str(arguments.get("note", "")),
+        )
 
     def _read_message(self) -> dict[str, Any] | None:
         headers: dict[str, str] = {}
@@ -220,10 +277,8 @@ class StdioJsonRpcServer:
         sys.stdout.buffer.flush()
 
 
-
 def build_service(db_path: str | Path | None = None) -> KnowledgeService:
     return KnowledgeService(db_path or DEFAULT_DB_PATH, DEFAULT_CATEGORIES_PATH)
-
 
 
 def main() -> None:
